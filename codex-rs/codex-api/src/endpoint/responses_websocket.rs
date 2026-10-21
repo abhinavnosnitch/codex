@@ -1082,7 +1082,9 @@ mod tests {
             include: vec!["reasoning.encrypted_content".to_string()],
             service_tier: Some("priority".to_string()),
             prompt_cache_key: Some("cache-key".to_string()),
-            prompt_cache_options: None,
+            prompt_cache_options: Some(crate::PromptCacheOptions {
+                ttl: codex_protocol::config_types::PromptCacheTtl::TwelveHours,
+            }),
             text: None,
             access_programs: Some(
                 codex_protocol::turn_input::CyberAccessProgram::DaybreakBlue.into(),

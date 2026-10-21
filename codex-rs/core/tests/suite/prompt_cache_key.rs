@@ -33,7 +33,7 @@ const COLLABORATION_NAMESPACE: &str = "collaboration";
 #[tokio::test]
 async fn prompt_cache_ttl_reaches_requests_across_turns(ttl: Option<PromptCacheTtl>) -> Result<()> {
     let server = start_mock_server().await;
-    let mut test = test_codex()
+    let test = test_codex()
         .with_auth(CodexAuth::from_api_key("dummy"))
         .with_config(move |config| config.prompt_cache_ttl = ttl)
         .build_with_auto_env(&server)

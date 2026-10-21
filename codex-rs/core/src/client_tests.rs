@@ -1507,18 +1507,18 @@ fn prompt_cache_ttl_changes_prevent_incremental_request_reuse() {
         &client,
         Some("turn-cache-ttl"),
         "window-cache-ttl".to_string(),
-        None,
+        /*parent_thread_id*/ None,
         TestCodexResponsesRequestKind::Turn,
     );
     let mut request = client
         .build_responses_request(
             &Prompt::default(),
             &test_model_info(),
-            None,
+            /*effort*/ None,
             codex_protocol::config_types::ReasoningSummary::None,
-            None,
+            /*service_tier*/ None,
             &metadata,
-            false,
+            /*include_internal*/ false,
         )
         .expect("build request");
     let mut changed = request.clone();
