@@ -477,7 +477,7 @@ mod prompt_cache_tests {
 
     #[test]
     fn prompt_cache_options_are_omitted_by_default_on_both_transports() {
-        let request = request(None);
+        let request = request(/*ttl*/ None);
         for body in [
             serde_json::to_value(&request).expect("HTTP request"),
             serde_json::to_value(ResponseCreateWsRequest::from(&request))
