@@ -1501,6 +1501,49 @@ fn build_subagent_headers_sets_other_subagent_label() {
 }
 
 #[test]
+fn prompt_cache_ttl_changes_prevent_incremental_request_reuse() {
+    let client = test_model_client(SessionSource::Cli);
+    let metadata = test_responses_metadata_for_client(
+        &client,
+        Some("turn-cache-ttl"),
+        "window-cache-ttl".to_string(),
+        /*parent_thread_id*/ None,
+        TestCodexResponsesRequestKind::Turn,
+    );
+    let mut request = client
+        .build_responses_request(
+            &Prompt::default(),
+            &test_model_info(),
+            /*effort*/ None,
+            codex_protocol::config_types::ReasoningSummary::None,
+            /*service_tier*/ None,
+            &metadata,
+            /*include_internal*/ false,
+        )
+        .expect("build request");
+    let mut changed = request.clone();
+    changed.prompt_cache_options = Some(codex_api::PromptCacheOptions {
+        ttl: codex_protocol::config_types::PromptCacheTtl::TwelveHours,
+    });
+    assert_eq!(
+        super::responses_request_properties_mismatch(&request, &changed),
+        Some("prompt_cache_options_changed")
+    );
+    request.prompt_cache_options = changed.prompt_cache_options;
+    assert_eq!(
+        super::responses_request_properties_mismatch(&request, &changed),
+        None
+    );
+    changed.prompt_cache_options = Some(codex_api::PromptCacheOptions {
+        ttl: codex_protocol::config_types::PromptCacheTtl::ThirtyMinutes,
+    });
+    assert_eq!(
+        super::responses_request_properties_mismatch(&request, &changed),
+        Some("prompt_cache_options_changed")
+    );
+}
+
+#[test]
 fn internal_session_prompt_cache_key_is_scoped_to_parent_thread() {
     let parent_thread_id = ThreadId::new();
     let client = test_model_client(SessionSource::Internal(InternalSessionSource::Guardian));

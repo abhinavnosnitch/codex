@@ -1394,6 +1394,9 @@
         "plan_mode_reasoning_effort": {
           "$ref": "#/definitions/ReasoningEffort"
         },
+        "prompt_cache_ttl": {
+          "$ref": "#/definitions/PromptCacheTtl"
+        },
         "sandbox_mode": {
           "$ref": "#/definitions/SandboxMode"
         },
@@ -3867,6 +3870,14 @@
         }
       },
       "type": "object"
+    },
+    "PromptCacheTtl": {
+      "description": "Minimum prompt-cache lifetime requested from a compatible Responses API backend.",
+      "enum": [
+        "30m",
+        "12h"
+      ],
+      "type": "string"
     },
     "RawMcpServerConfig": {
       "additionalProperties": false,
@@ -8134,6 +8145,14 @@
         "$ref": "#/definitions/ProjectConfig"
       },
       "type": "object"
+    },
+    "prompt_cache_ttl": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/PromptCacheTtl"
+        }
+      ],
+      "description": "Optional minimum prompt-cache lifetime (\"30m\" or \"12h\") for compatible Responses API models and backends. Unset preserves backend defaults."
     },
     "realtime": {
       "allOf": [
