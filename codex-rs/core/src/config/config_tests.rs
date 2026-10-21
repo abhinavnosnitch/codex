@@ -12024,6 +12024,43 @@ async fn prompt_cache_ttl_is_loaded_from_config() -> std::io::Result<()> {
 }
 
 #[tokio::test]
+async fn prompt_cache_ttl_profile_and_cli_precedence() -> std::io::Result<()> {
+    use codex_protocol::config_types::PromptCacheTtl;
+
+    let codex_home = TempDir::new()?;
+    let selected_config = codex_home.path().join("work.config.toml");
+    std::fs::write(
+        codex_home.path().join(CONFIG_TOML_FILE),
+        "prompt_cache_ttl = \"30m\"\n",
+    )?;
+    std::fs::write(&selected_config, "prompt_cache_ttl = \"12h\"\n")?;
+    for (cli_overrides, expected) in [
+        (vec![], PromptCacheTtl::TwelveHours),
+        (
+            vec![(
+                "prompt_cache_ttl".to_string(),
+                TomlValue::String("30m".to_string()),
+            )],
+            PromptCacheTtl::ThirtyMinutes,
+        ),
+    ] {
+        let config = ConfigBuilder::without_managed_config_for_tests()
+            .codex_home(codex_home.path().to_path_buf())
+            .fallback_cwd(Some(codex_home.path().to_path_buf()))
+            .loader_overrides(LoaderOverrides {
+                user_config_path: Some(selected_config.abs()),
+                user_config_profile: Some("work".parse().expect("profile name")),
+                ..LoaderOverrides::without_managed_config_for_tests()
+            })
+            .cli_overrides(cli_overrides)
+            .build()
+            .await?;
+        assert_eq!(config.prompt_cache_ttl, Some(expected));
+    }
+    Ok(())
+}
+
+#[tokio::test]
 async fn prompt_instruction_blocks_can_be_disabled_from_config() -> std::io::Result<()> {
     let codex_home = TempDir::new()?;
     std::fs::write(
