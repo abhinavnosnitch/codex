@@ -1,0 +1,57 @@
+name: Prompt-cache TTL validation
+
+on:
+  push:
+    branches: [validation/prompt-cache-ttl]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CARGO_BUILD_JOBS: "2"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      CARGO_INCREMENTAL: "0"
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      RUSTFLAGS: "-C link-arg=-fuse-ld=lld"
+    defaults:
+      run:
+        shell: bash
+        working-directory: codex-rs
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+      - name: Prepare hosted runner
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          sudo apt-get update -qq
+          sudo apt-get install -y clang lld libssl-dev pkg-config protobuf-compiler libcap-dev
+      - uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8
+        with:
+          components: rustfmt
+      - uses: facebook/install-dotslash@1e4e7b3e07eaca387acb98f1d4720e0bee8dbb6a
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Test config parsing and rejection
+        run: cargo test --locked -p codex-config --lib prompt_cache_ttl
+      - name: Test API payloads and HTTP client fixtures
+        run: |
+          cargo test --locked -p codex-api --lib prompt_cache_
+          cargo test --locked -p codex-api --lib direct_serialization_preserves_websocket_request_payload
+          cargo test --locked -p codex-api --test clients
+      - name: Verify generated configuration schema
+        run: |
+          cargo run --locked -p codex-config-schema --bin codex-write-config-schema -- --out "$RUNNER_TEMP/config.generated.json"
+          diff -u core/config.schema.json "$RUNNER_TEMP/config.generated.json"
+      - name: Test runtime config and mocked model requests
+        run: |
+          cargo test --locked -p codex-core --lib prompt_cache_ttl
+          cargo test --locked -p codex-core --test all prompt_cache_ttl
+      - name: Check remaining request callers
+        run: cargo check --locked -p codex-memories-write -p codex-guardian-v2
