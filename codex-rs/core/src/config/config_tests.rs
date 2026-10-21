@@ -12005,6 +12005,25 @@ async fn approvals_reviewer_defaults_to_manual_only_without_guardian_feature() -
 }
 
 #[tokio::test]
+async fn prompt_cache_ttl_is_loaded_from_config() -> std::io::Result<()> {
+    let codex_home = TempDir::new()?;
+    std::fs::write(
+        codex_home.path().join(CONFIG_TOML_FILE),
+        "prompt_cache_ttl = \"12h\"\n",
+    )?;
+    let config = ConfigBuilder::without_managed_config_for_tests()
+        .codex_home(codex_home.path().to_path_buf())
+        .fallback_cwd(Some(codex_home.path().to_path_buf()))
+        .build()
+        .await?;
+    assert_eq!(
+        config.prompt_cache_ttl,
+        Some(codex_protocol::config_types::PromptCacheTtl::TwelveHours)
+    );
+    Ok(())
+}
+
+#[tokio::test]
 async fn prompt_instruction_blocks_can_be_disabled_from_config() -> std::io::Result<()> {
     let codex_home = TempDir::new()?;
     std::fs::write(

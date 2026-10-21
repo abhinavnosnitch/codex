@@ -101,6 +101,7 @@ use codex_protocol::config_types::AltScreenMode;
 use codex_protocol::config_types::AutoCompactTokenLimitScope;
 use codex_protocol::config_types::ForcedLoginMethod;
 use codex_protocol::config_types::Personality;
+use codex_protocol::config_types::PromptCacheTtl;
 use codex_protocol::config_types::ReasoningSummary;
 use codex_protocol::config_types::SERVICE_TIER_DEFAULT_REQUEST_VALUE;
 use codex_protocol::config_types::SandboxMode;
@@ -1055,6 +1056,9 @@ pub struct Config {
 
     /// Optional verbosity control for GPT-5 models (Responses API `text.verbosity`).
     pub model_verbosity: Option<Verbosity>,
+
+    /// Optional minimum prompt-cache lifetime. Unset preserves backend defaults.
+    pub prompt_cache_ttl: Option<PromptCacheTtl>,
 
     /// Base URL for requests to ChatGPT (as opposed to the OpenAI API).
     pub chatgpt_base_url: String,
@@ -4573,6 +4577,7 @@ impl Config {
             model_reasoning_summary: cfg.model_reasoning_summary,
             model_catalog,
             model_verbosity: cfg.model_verbosity,
+            prompt_cache_ttl: cfg.prompt_cache_ttl,
             chatgpt_base_url: cfg
                 .chatgpt_base_url
                 .unwrap_or("https://chatgpt.com/backend-api/".to_string()),

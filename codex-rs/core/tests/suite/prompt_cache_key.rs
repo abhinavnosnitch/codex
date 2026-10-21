@@ -6,6 +6,7 @@ use codex_core::PromptCacheKey;
 use codex_core::StartThreadOptions;
 use codex_features::Feature;
 use codex_login::CodexAuth;
+use codex_protocol::config_types::PromptCacheTtl;
 use codex_protocol::protocol::TurnEnvironmentSelection;
 use core_test_support::responses::ev_assistant_message;
 use core_test_support::responses::ev_completed;
@@ -25,6 +26,29 @@ const ROOT_PROMPT: &str = "delegate the cache audit";
 const CHILD_TASK: &str = "inspect the repository";
 const SPAWN_CALL_ID: &str = "spawn-worker";
 const COLLABORATION_NAMESPACE: &str = "collaboration";
+
+#[test_case::test_case(None; "backend_default")]
+#[test_case::test_case(Some(PromptCacheTtl::ThirtyMinutes); "thirty_minutes")]
+#[test_case::test_case(Some(PromptCacheTtl::TwelveHours); "twelve_hours")]
+#[tokio::test]
+async fn prompt_cache_ttl_reaches_requests_across_turns(ttl: Option<PromptCacheTtl>) -> Result<()> {
+    let server = start_mock_server().await;
+    let mut test = test_codex()
+        .with_auth(CodexAuth::from_api_key("dummy"))
+        .with_config(move |config| config.prompt_cache_ttl = ttl)
+        .build_with_auto_env(&server)
+        .await?;
+    let expected = ttl.map(|ttl| json!({ "ttl": ttl }));
+
+    for turn in ["first", "second"] {
+        let response = mount_sse_once(&server, sse(vec![ev_completed(turn)])).await;
+        test.submit_text_turn(turn).await?;
+        let body = response.single_request().body_json();
+        assert_eq!(body.get("prompt_cache_options"), expected.as_ref());
+        assert!(body.get("prompt_cache_retention").is_none());
+    }
+    Ok(())
+}
 
 async fn start_with_prompt_cache_key(test: &mut TestCodex, policy: PromptCacheKey) -> Result<()> {
     let thread = test

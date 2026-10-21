@@ -44,6 +44,7 @@ use codex_model_provider_info::OPENAI_PROVIDER_ID;
 use codex_protocol::config_types::AutoCompactTokenLimitScope;
 use codex_protocol::config_types::ForcedLoginMethod;
 use codex_protocol::config_types::Personality;
+use codex_protocol::config_types::PromptCacheTtl;
 use codex_protocol::config_types::ReasoningSummary;
 use codex_protocol::config_types::SandboxMode;
 use codex_protocol::config_types::TrustLevel;
@@ -400,6 +401,10 @@ pub struct ConfigToml {
     pub model_reasoning_summary: Option<ReasoningSummary>,
     /// Optional verbosity control for GPT-5 models (Responses API `text.verbosity`).
     pub model_verbosity: Option<Verbosity>,
+
+    /// Optional minimum prompt-cache lifetime ("30m" or "12h") for compatible
+    /// Responses API models and backends. Unset preserves backend defaults.
+    pub prompt_cache_ttl: Option<PromptCacheTtl>,
 
     /// Optional path to a JSON model catalog (applied on startup only).
     /// Per-thread `config` overrides are accepted but do not reapply this (no-ops).
@@ -1018,6 +1023,36 @@ pub fn validate_oss_provider(provider: &str) -> std::io::Result<()> {
 mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
+
+    #[test]
+    fn prompt_cache_ttl_defaults_to_backend_policy() {
+        let config: ConfigToml = toml::from_str("").expect("empty config");
+        assert_eq!(config.prompt_cache_ttl, None);
+        assert_eq!(ConfigProfile::default().prompt_cache_ttl, None);
+    }
+
+    #[test]
+    fn prompt_cache_ttl_accepts_supported_lifetimes_in_config_and_profile() {
+        for (value, expected) in [
+            ("30m", PromptCacheTtl::ThirtyMinutes),
+            ("12h", PromptCacheTtl::TwelveHours),
+        ] {
+            let source = format!("prompt_cache_ttl = {value:?}");
+            let config: ConfigToml = toml::from_str(&source).expect("valid cache lifetime");
+            let profile: ConfigProfile = toml::from_str(&source).expect("valid profile lifetime");
+            assert_eq!(config.prompt_cache_ttl, Some(expected));
+            assert_eq!(profile.prompt_cache_ttl, Some(expected));
+        }
+    }
+
+    #[test]
+    fn prompt_cache_ttl_rejects_unsupported_lifetimes() {
+        for value in ["\"5m\"", "\"24h\"", "\"in_memory\"", "12", "true"] {
+            let source = format!("prompt_cache_ttl = {value}");
+            assert!(toml::from_str::<ConfigToml>(&source).is_err());
+            assert!(toml::from_str::<ConfigProfile>(&source).is_err());
+        }
+    }
 
     const WORKSPACE_ID_A: &str = "123e4567-e89b-42d3-a456-426614174000";
     const WORKSPACE_ID_B: &str = "123e4567-e89b-42d3-a456-426614174001";

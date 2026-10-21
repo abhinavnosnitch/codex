@@ -270,6 +270,7 @@ pub struct ModelClient {
     state: Arc<ModelClientState>,
     agent_identity_policy: AgentIdentityAuthPolicy,
     prompt_cache_key_policy: PromptCacheKey,
+    prompt_cache_ttl: Option<codex_protocol::config_types::PromptCacheTtl>,
     session_id_override: Option<String>,
     codex_responses_headers: Option<Arc<CodexResponsesHeaders>>,
     event_sender: Option<Sender<ProtocolEvent>>,
@@ -405,6 +406,7 @@ fn responses_request_properties_mismatch(
         include: previous_include,
         service_tier: previous_service_tier,
         prompt_cache_key: previous_prompt_cache_key,
+        prompt_cache_options: previous_prompt_cache_options,
         text: previous_text,
         client_metadata: _,
         access_programs: _,
@@ -422,6 +424,7 @@ fn responses_request_properties_mismatch(
         include: current_include,
         service_tier: current_service_tier,
         prompt_cache_key: current_prompt_cache_key,
+        prompt_cache_options: current_prompt_cache_options,
         text: current_text,
         client_metadata: _,
         access_programs: _,
@@ -449,6 +452,8 @@ fn responses_request_properties_mismatch(
         "service_tier_changed"
     } else if previous_prompt_cache_key != current_prompt_cache_key {
         "prompt_cache_key_changed"
+    } else if previous_prompt_cache_options != current_prompt_cache_options {
+        "prompt_cache_options_changed"
     } else if previous_text != current_text {
         "text_changed"
     } else {
@@ -606,6 +611,7 @@ impl ModelClient {
             }),
             agent_identity_policy,
             prompt_cache_key_policy: PromptCacheKey::default(),
+            prompt_cache_ttl: None,
             session_id_override: None,
             codex_responses_headers: None,
             event_sender: None,
@@ -616,6 +622,16 @@ impl ModelClient {
             api_key_cyber_access_programs:
                 cyber_access_program::ApiKeyCyberAccessPrograms::UnsupportedProvider,
         }
+    }
+
+    /// Requests a minimum prompt-cache lifetime without changing backend defaults
+    /// when the option is unset. The selected backend must support this API field.
+    pub fn with_prompt_cache_ttl(
+        mut self,
+        ttl: Option<codex_protocol::config_types::PromptCacheTtl>,
+    ) -> Self {
+        self.prompt_cache_ttl = ttl;
+        self
     }
 
     pub(crate) fn with_executed_tool_calls(mut self, recorder: ExecutedToolCalls) -> Self {
@@ -1122,6 +1138,9 @@ impl ModelClient {
             include,
             service_tier,
             prompt_cache_key: self.prompt_cache_key(responses_metadata),
+            prompt_cache_options: self
+                .prompt_cache_ttl
+                .map(|ttl| codex_api::PromptCacheOptions { ttl }),
             text,
             client_metadata: Some(client_metadata),
             access_programs: None,

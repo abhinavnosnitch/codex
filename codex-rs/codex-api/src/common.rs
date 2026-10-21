@@ -1,5 +1,6 @@
 use crate::error::ApiError;
 use codex_protocol::ResponseUsageMetadata;
+use codex_protocol::config_types::PromptCacheTtl;
 use codex_protocol::config_types::ReasoningSummary as ReasoningSummaryConfig;
 use codex_protocol::config_types::Verbosity as VerbosityConfig;
 use codex_protocol::models::ResponseItem;
@@ -275,6 +276,13 @@ impl Serialize for ResponsesApiTools {
     }
 }
 
+/// Prompt-cache controls explicitly selected by the caller.
+/// Omitting this object leaves the backend's caching behavior unchanged.
+#[derive(Debug, Serialize, Clone, Copy, PartialEq, Eq)]
+pub struct PromptCacheOptions {
+    pub ttl: PromptCacheTtl,
+}
+
 #[derive(Debug, Serialize, Clone, PartialEq)]
 pub struct ResponsesApiRequest {
     // Keep routing fields first: serde serializes struct fields in declaration order, and
@@ -295,6 +303,8 @@ pub struct ResponsesApiRequest {
     pub include: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt_cache_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt_cache_options: Option<PromptCacheOptions>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<TextControls>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -319,6 +329,7 @@ impl<'a> From<&'a ResponsesApiRequest> for ResponseCreateWsRequest<'a> {
             include: &request.include,
             service_tier: request.service_tier.as_deref(),
             prompt_cache_key: request.prompt_cache_key.as_deref(),
+            prompt_cache_options: request.prompt_cache_options,
             text: request.text.as_ref(),
             generate: None,
             client_metadata: request.client_metadata.clone(),
@@ -349,6 +360,8 @@ pub struct ResponseCreateWsRequest<'a> {
     pub include: &'a [String],
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt_cache_key: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt_cache_options: Option<PromptCacheOptions>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<&'a TextControls>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -433,5 +446,63 @@ impl Stream for ResponseStream {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.rx_event.poll_recv(cx)
+    }
+}
+
+#[cfg(test)]
+mod prompt_cache_tests {
+    use super::*;
+    use serde_json::json;
+
+    fn request(ttl: Option<PromptCacheTtl>) -> ResponsesApiRequest {
+        ResponsesApiRequest {
+            model: "gpt-6.1-sol".to_string(),
+            stream: true,
+            service_tier: None,
+            input: vec![],
+            tools: None,
+            tool_choice: "auto".to_string(),
+            parallel_tool_calls: true,
+            reasoning: None,
+            store: false,
+            stream_options: None,
+            include: vec![],
+            prompt_cache_key: None,
+            prompt_cache_options: ttl.map(|ttl| PromptCacheOptions { ttl }),
+            text: None,
+            client_metadata: None,
+            access_programs: None,
+        }
+    }
+
+    #[test]
+    fn prompt_cache_options_are_omitted_by_default_on_both_transports() {
+        let request = request(None);
+        for body in [
+            serde_json::to_value(&request).expect("HTTP request"),
+            serde_json::to_value(ResponseCreateWsRequest::from(&request))
+                .expect("WebSocket request"),
+        ] {
+            assert!(body.get("prompt_cache_options").is_none());
+            assert!(body.get("prompt_cache_retention").is_none());
+        }
+    }
+
+    #[test]
+    fn prompt_cache_options_preserve_lifetime_on_both_transports() {
+        for (ttl, value) in [
+            (PromptCacheTtl::ThirtyMinutes, "30m"),
+            (PromptCacheTtl::TwelveHours, "12h"),
+        ] {
+            let request = request(Some(ttl));
+            for body in [
+                serde_json::to_value(&request).expect("HTTP request"),
+                serde_json::to_value(ResponseCreateWsRequest::from(&request))
+                    .expect("WebSocket request"),
+            ] {
+                assert_eq!(body["prompt_cache_options"], json!({ "ttl": value }));
+                assert!(body.get("prompt_cache_retention").is_none());
+            }
+        }
     }
 }

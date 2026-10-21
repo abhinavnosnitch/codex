@@ -96,6 +96,15 @@ pub enum Verbosity {
     High,
 }
 
+/// Minimum prompt-cache lifetime requested from a compatible Responses API backend.
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, JsonSchema)]
+pub enum PromptCacheTtl {
+    #[serde(rename = "30m")]
+    ThirtyMinutes,
+    #[serde(rename = "12h")]
+    TwelveHours,
+}
+
 #[derive(
     Deserialize, Debug, Clone, Copy, PartialEq, Default, Serialize, Display, JsonSchema, TS,
 )]
